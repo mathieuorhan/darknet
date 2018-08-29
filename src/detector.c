@@ -549,7 +549,7 @@ int detections_comparator(const void *pa, const void *pb)
     return 0;
 }
 
-void validate_detector_map(char *datacfg, char *cfgfile, char *weightfile, float thresh_calc_avg_iou)
+void validate_detector_map(char *datacfg, char *cfgfile, char *weightfile, float thresh_calc_avg_iou, char *outfile)
 {
     int j;
     list *options = read_data_cfg(datacfg);
@@ -867,13 +867,15 @@ void validate_detector_map(char *datacfg, char *cfgfile, char *weightfile, float
     printf("\n mean average precision (mAP) = %f, or %2.2f %% \n", mean_average_precision, mean_average_precision*100);
     FILE * map_file;
     //export results to file
-    map_file = fopen ("map.txt", "a+");
+    if(outfile) {
+    map_file = fopen (outfile, "a+");
     // iteration thresh prec recall map iou TP FP FN FPS ap0 ap1 ap2 ap3
     // TODO : remplacer 16 par net.batch/net.subdivisions (erreur ?) et ajouter FPS (m/temps)
     fprintf(map_file, "%d %0.2f %2.2f %2.2f %2.2f %2.2f %d %d %d %2.2f %2.2f %2.2f %2.2f\n", 
         get_current_batch(net)/16, thresh_calc_avg_iou, cur_precision, cur_recall, mean_average_precision*100, avg_iou*100, tp_for_thresh, fp_for_thresh, unique_truth_count - tp_for_thresh,
         ap_by_class[0], ap_by_class[1], ap_by_class[2], ap_by_class[3]);
     fclose(map_file);
+    }
 
     for (i = 0; i < classes; ++i) {
         free(pr[i]);
@@ -1274,7 +1276,7 @@ void run_detector(int argc, char **argv)
     else if(0==strcmp(argv[2], "train")) train_detector(datacfg, cfg, weights, gpus, ngpus, clear, dont_show);
     else if(0==strcmp(argv[2], "valid")) validate_detector(datacfg, cfg, weights, outfile);
     else if(0==strcmp(argv[2], "recall")) validate_detector_recall(datacfg, cfg, weights);
-    else if(0==strcmp(argv[2], "map")) validate_detector_map(datacfg, cfg, weights, thresh);
+    else if(0==strcmp(argv[2], "map")) validate_detector_map(datacfg, cfg, weights, thresh, outfile);
     else if(0==strcmp(argv[2], "calc_anchors")) calc_anchors(datacfg, num_of_clusters, width, height, show);
     else if(0==strcmp(argv[2], "demo")) {
         list *options = read_data_cfg(datacfg);

@@ -202,9 +202,9 @@ void train_detector(char *datacfg, char *cfgfile, char *weightfile, int *gpus, i
 #endif    // OPENCV
 
         //if (i % 1000 == 0 || (i < 1000 && i % 100 == 0)) {
-        //if (i % 100 == 0) {
-        if(i >= (iter_save + 100)) {
-            iter_save = i;
+        if (i % 500 == 0) {
+        //if(i >= (iter_save + 100)) {
+        //    iter_save = i;
 #ifdef GPU
             if (ngpus != 1) sync_nets(nets, ngpus, 0);
 #endif
@@ -625,7 +625,7 @@ void validate_detector_map(char *datacfg, char *cfgfile, char *weightfile, float
     }
     time_t start = time(0);
     for (i = nthreads; i < m + nthreads; i += nthreads) {
-        fprintf(stderr, "%d\n", i);
+        //fprintf(stderr, "%d\n", i);
         for (t = 0; t < nthreads && i + t - nthreads < m; ++t) {
             pthread_join(thr[t], 0);
             val[t] = buf[t];
@@ -828,7 +828,8 @@ void validate_detector_map(char *datacfg, char *cfgfile, char *weightfile, float
 
 
     double mean_average_precision = 0;
-
+    double* ap_by_class = NULL;
+    ap_by_class = malloc(classes*sizeof(double)); 
     for (i = 0; i < classes; ++i) {
         double avg_precision = 0;
         int point;
@@ -848,6 +849,7 @@ void validate_detector_map(char *datacfg, char *cfgfile, char *weightfile, float
             avg_precision += cur_precision;
         }
         avg_precision = avg_precision / 11;
+        ap_by_class[i] = avg_precision*100;
         printf("class_id = %d, name = %s, \t ap = %2.2f %% \n", i, names[i], avg_precision*100);
         mean_average_precision += avg_precision;
     }
@@ -863,7 +865,15 @@ void validate_detector_map(char *datacfg, char *cfgfile, char *weightfile, float
 
     mean_average_precision = mean_average_precision / classes;
     printf("\n mean average precision (mAP) = %f, or %2.2f %% \n", mean_average_precision, mean_average_precision*100);
-
+    FILE * map_file;
+    //export results to file
+    map_file = fopen ("map.txt", "a+");
+    // iteration thresh prec recall map iou TP FP FN FPS ap0 ap1 ap2 ap3
+    // TODO : remplacer 16 par net.batch/net.subdivisions (erreur ?) et ajouter FPS (m/temps)
+    fprintf(map_file, "%d %0.2f %2.2f %2.2f %2.2f %2.2f %d %d %d %2.2f %2.2f %2.2f %2.2f\n", 
+        get_current_batch(net)/16, thresh_calc_avg_iou, cur_precision, cur_recall, mean_average_precision*100, avg_iou*100, tp_for_thresh, fp_for_thresh, unique_truth_count - tp_for_thresh,
+        ap_by_class[0], ap_by_class[1], ap_by_class[2], ap_by_class[3]);
+    fclose(map_file);
 
     for (i = 0; i < classes; ++i) {
         free(pr[i]);
@@ -871,6 +881,7 @@ void validate_detector_map(char *datacfg, char *cfgfile, char *weightfile, float
     free(pr);
     free(detections);
     free(truth_classes_count);
+    free(ap_by_class);
 
     fprintf(stderr, "Total Detection Time: %f Seconds\n", (double)(time(0) - start));
     if (reinforcement_fd != NULL) fclose(reinforcement_fd);
